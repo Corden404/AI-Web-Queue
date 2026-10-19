@@ -16,8 +16,7 @@ coverage/
 .idea/
 .vscode/
 
-# Local test suites and simulated preview
-/tests/
+# Local simulated preview
 /index.html
 /vite.config.ts
 /src/demo.ts

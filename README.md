@@ -57,6 +57,7 @@ Chrome 的 ChatGPT 纯文本消息队列扩展。队列托盘内缩在原输入�
 ```powershell
 npm ci
 npm run check
+npm test
 npm run build
 npm run package
 ```
