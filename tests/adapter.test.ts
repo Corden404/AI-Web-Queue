@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { editorText, inspectPage, messagesFrom } from '../src/page/adapter.ts';
+import { editorText, inspectPage, messagesFrom, replaceEditorText, visible } from '../src/page/adapter.ts';
 
 const fixture = (turn = 'complete', extra = '', latest = 'assistant') => new JSDOM(`<!doctype html><html><body>
  <main><div data-talvt-turn-state="${turn}">
@@ -68,4 +68,31 @@ test('localized send button, disabled controls, hidden attachments, and error st
 test('legacy message attributes use the live completion region', () => {
   const document = new JSDOM('<div data-message-author-role="assistant" data-message-id="a">done</div><form><div id="prompt-textarea" contenteditable="true"></div><button data-testid="send-button">send</button></form><div role="status" aria-live="polite">Response complete</div>').window.document;
   assert.equal(inspectPage(document).complete, true); assert.equal(messagesFrom(document)[0]!.id, 'a');
+});
+
+test('hidden ancestor composers, stop buttons and alerts cannot override the visible chat', () => {
+  const document = fixture('complete', '<button aria-label="Send message"></button>');
+  const hidden = document.createElement('div'); hidden.style.display = 'none';
+  hidden.innerHTML = '<form><textarea id="prompt-textarea">hidden draft</textarea><button data-testid="stop-button">Stop</button></form><div role="alert">Network error</div>';
+  document.body.prepend(hidden);
+  const page = inspectPage(document);
+  assert.equal(page.editor?.className, 'ProseMirror');
+  assert.equal(page.stop, null); assert.equal(page.error, ''); assert.equal(page.complete, true);
+  assert.equal(visible(hidden.querySelector('textarea')), false);
+  assert.throws(() => replaceEditorText(hidden.querySelector('textarea')!, 'overwrite'), /输入框已变化/);
+  assert.equal(hidden.querySelector('textarea')!.value, 'hidden draft');
+  document.defaultView!.close();
+});
+
+test('CSS classes and content-visibility on ancestors are honored', () => {
+  const document = new JSDOM('<style>.gone{display:none}</style><div class="gone"><button>Send</button></div>').window.document;
+  const parent = document.querySelector('div')!;
+  const button = document.querySelector('button')!;
+  assert.equal(visible(button), false);
+  parent.className = ''; parent.style.contentVisibility = 'hidden';
+  assert.equal(visible(button), false);
+  parent.style.contentVisibility = ''; parent.style.visibility = 'hidden';
+  assert.equal(visible(button), false);
+  parent.style.visibility = ''; assert.equal(visible(button), true);
+  document.defaultView!.close();
 });

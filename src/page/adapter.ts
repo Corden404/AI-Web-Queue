@@ -23,7 +23,12 @@ const ERROR = /something went wrong|network error|error in (?:message|the messag
 export function visible(element: Element | null): element is HTMLElement {
   if (!element || element.closest('[hidden], [aria-hidden="true"]')) return false;
   const style = element.ownerDocument.defaultView!.getComputedStyle(element);
-  return style.display !== 'none' && style.visibility !== 'hidden';
+  if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+  for (let node: Element | null = element; node; node = node.parentElement) {
+    const ancestorStyle = node === element ? style : element.ownerDocument.defaultView!.getComputedStyle(node);
+    if (ancestorStyle.display === 'none' || ancestorStyle.contentVisibility === 'hidden') return false;
+  }
+  return true;
 }
 export function editorText(editor: HTMLElement): string {
   if (editor.tagName === 'TEXTAREA') return (editor as HTMLTextAreaElement).value;
