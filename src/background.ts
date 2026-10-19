@@ -5,6 +5,9 @@ import type { SettingsRequest } from './core/settings.ts';
 import { HISTORY_CHANNEL } from './core/history.ts';
 import type { HistoryRequest } from './core/history.ts';
 import { archiveHistory, exportHistory, historyStatus, listArchive, persistQueue, queueStorageKey, restoreArchive } from './history-store.ts';
+import { registerNamingBackground } from './naming/background.ts';
+
+registerNamingBackground();
 
 let writer: Promise<unknown> = Promise.resolve();
 const serialize = <T>(work: () => Promise<T>): Promise<T> => {

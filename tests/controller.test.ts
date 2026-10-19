@@ -6,6 +6,7 @@ import { emptyQueue, transition } from '../src/core/queue.ts';
 import { parseSettings, SETTINGS_CHANNEL, SETTINGS_KEY } from '../src/core/settings.ts';
 import type { Action, Actor, QueueReply, Request } from '../src/core/types.ts';
 import type { SettingsRequest } from '../src/core/settings.ts';
+import { NAMING_CHANNEL, defaultNamingSettings } from '../src/naming/settings.ts';
 
 // Exercise the shipping content-script entry, including its DOM events and storage adapter.
 const built = await build({ configFile: false, logLevel: 'silent', build: { write: false,
@@ -45,7 +46,9 @@ async function fixture(turn = 'incomplete', enabled?: boolean, pending = false, 
     subscribers.forEach(listener => listener({ [name]: { newValue: structuredClone(value) } }, 'local'));
   }
   Object.defineProperty(window, 'chrome', { value: {
-    runtime: { async sendMessage(message: Request | SettingsRequest) {
+    runtime: { onMessage: { addListener() {} }, async sendMessage(message: Request | SettingsRequest) {
+      if ((message as { channel: string }).channel === NAMING_CHANNEL)
+        return { ok: true, settings: { ...defaultNamingSettings(), enabled: false } };
       if (message.channel === SETTINGS_CHANNEL) {
         if (message.action.type === 'setEnabled') save(SETTINGS_KEY, { enabled: message.action.enabled });
         return { ok: true, settings: parseSettings(stored[SETTINGS_KEY]) };
