@@ -8,8 +8,10 @@ await mkdir('dist', { recursive: true });
 await build({ ...common, build: { ...common.build, lib: { entry: 'src/content.ts', formats: ['iife'], name: 'ChatGPTWebQueue', fileName: () => 'content.js' } } });
 await build({ ...common, build: { ...common.build, lib: { entry: 'src/background.ts', formats: ['es'], fileName: () => 'background.js' } } });
 await build({ ...common, build: { ...common.build, lib: { entry: 'src/popup.ts', formats: ['es'], fileName: () => 'popup.js' } } });
+await build({ ...common, build: { ...common.build, lib: { entry: 'src/history-page.ts', formats: ['es'], fileName: () => 'history.js' } } });
 await cp('public/manifest.json', 'dist/manifest.json');
 await cp('public/popup.html', 'dist/popup.html');
+await cp('public/history.html', 'dist/history.html');
 await cp('node_modules/@phosphor-icons/core/LICENSE', 'dist/PHOSPHOR-LICENSE.txt');
 // A small original code-drawn queue icon, avoiding any external image dependency.
 const crc32 = bytes => { let crc = 0xffffffff; for (const byte of bytes) { crc ^= byte; for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1)); } return (crc ^ 0xffffffff) >>> 0; };

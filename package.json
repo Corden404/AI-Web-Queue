@@ -11,10 +11,11 @@
     "package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1"
   },
   "devDependencies": {
-    "jsdom": "29.1.1",
     "@phosphor-icons/core": "^2.1.1",
     "@types/chrome": "^0.3.5",
     "@types/node": "^26.6.5",
+    "fake-indexeddb": "6.2.6",
+    "jsdom": "29.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
   }

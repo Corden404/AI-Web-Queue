@@ -30,6 +30,7 @@ async function fixture(turn = 'incomplete', enabled?: boolean, pending = false, 
   const subscribers = new Set<(changes: Record<string, unknown>, area: string) => void>();
   const commands: string[] = [];
   let failAction: string | null = null;
+  let failMessage = 'Extension context invalidated';
   let afterAction: ((message: Request, reply: QueueReply) => Promise<void> | void) | null = null;
   const intervals: (() => void)[] = [];
   const measures: { name: string; start: number; duration: number }[] = [];
@@ -50,7 +51,7 @@ async function fixture(turn = 'incomplete', enabled?: boolean, pending = false, 
         return { ok: true, settings: parseSettings(stored[SETTINGS_KEY]) };
       }
       commands.push(message.action.type);
-      if (message.action.type === failAction) { failAction = null; throw new Error('Extension context invalidated'); }
+      if (message.action.type === failAction) { failAction = null; throw new Error(failMessage); }
       const state = (stored[queueName] as ReturnType<typeof emptyQueue> | undefined) ?? emptyQueue(message.key);
       if (!parseSettings(stored[SETTINGS_KEY]).enabled && ['enqueue', 'claim', 'submitted'].includes(message.action.type))
         return { ok: false, state, error: 'Queue 已关闭' };
@@ -93,7 +94,7 @@ async function fixture(turn = 'incomplete', enabled?: boolean, pending = false, 
       if (reply.ok) save(queueName, reply.state);
       return reply;
     },
-    failNext: (action: string) => { failAction = action; }, state: () => stored[queueName] as ReturnType<typeof emptyQueue> };
+    failNext: (action: string, message = 'Extension context invalidated') => { failAction = action; failMessage = message; }, state: () => stored[queueName] as ReturnType<typeof emptyQueue> };
 }
 
 function captureNativeSends(f: Awaited<ReturnType<typeof fixture>>) {
@@ -377,5 +378,16 @@ test('takeover after the native click preserves the receipt before transferring 
     assert.equal(f.state().owner?.documentId, 'tab-b');
     assert.equal(f.state().paused, true);
     assert.doesNotMatch(f.root().textContent!, /发送状态已变化/);
+  } finally { f.dom.window.close(); }
+});
+
+test('a capacity failure leaves the composer draft intact and shows the storage action', async () => {
+  const f = await fixture('incomplete', true, true);
+  try {
+    f.failNext('enqueue', '本地队列空间不足，请在“管理本地记录”中导出数据并归档后重试');
+    f.enter('keep this new draft'); await flush();
+    assert.equal(f.editor.textContent, 'keep this new draft');
+    assert.equal(f.state().items.length, 1);
+    assert.match(f.root().querySelector('[role=alert]')!.textContent!, /管理本地记录/);
   } finally { f.dom.window.close(); }
 });

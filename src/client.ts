@@ -1,6 +1,14 @@
 import type { Action, QueueClient, QueueReply } from './core/types.ts';
 import { parseSettings, SETTINGS_CHANNEL, SETTINGS_KEY } from './core/settings.ts';
 import type { Settings } from './core/settings.ts';
+import { HISTORY_CHANNEL } from './core/history.ts';
+import type { HistoryRequest } from './core/history.ts';
+
+export async function historyRequest<T>(action: HistoryRequest['action']): Promise<T> {
+  const response = await chrome.runtime.sendMessage({ channel: HISTORY_CHANNEL, action });
+  if (!response?.ok) throw new Error(response?.error ?? '无法读取本地记录');
+  return response.data;
+}
 
 export async function readSettings(): Promise<Settings> {
   const response = await chrome.runtime.sendMessage({ channel: SETTINGS_CHANNEL, action: { type: 'get' } });

@@ -1,15 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import 'fake-indexeddb/auto';
+import { emptyQueue } from '../src/core/queue.ts';
 import type { QueueReply, Request } from '../src/core/types.ts';
 import { SETTINGS_CHANNEL, SETTINGS_KEY } from '../src/core/settings.ts';
 import type { Settings, SettingsRequest } from '../src/core/settings.ts';
+import { byteLength, HISTORY_CHANNEL } from '../src/core/history.ts';
+import type { HistoryExport, HistoryRequest } from '../src/core/history.ts';
 
 const data: Record<string, unknown> = {};
-let listener: (message: Request | SettingsRequest, sender: chrome.runtime.MessageSender, respond: (reply: unknown) => void) => unknown;
+let listener: (message: Request | SettingsRequest | HistoryRequest, sender: chrome.runtime.MessageSender, respond: (reply: unknown) => void) => unknown;
 let closed: (tabId: number) => void;
 Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
-  runtime: { id: 'test-extension', onMessage: { addListener(fn: typeof listener) { listener = fn; } } },
+  runtime: { id: 'test-extension', getURL: (path: string) => `chrome-extension://test-extension/${path}`, onMessage: { addListener(fn: typeof listener) { listener = fn; } } },
   storage: { local: {
+    QUOTA_BYTES: 10 * 1024 * 1024,
+    async getBytesInUse(keys: string | string[] | null) {
+      const selected = keys === null ? Object.keys(data) : typeof keys === 'string' ? [keys] : keys;
+      return selected.filter(key => key in data).reduce((bytes, key) => bytes + byteLength(data[key]) + byteLength(key), 0);
+    },
     async get(keys: string | string[] | null) {
       const selected = keys === null ? Object.keys(data) : typeof keys === 'string' ? [keys] : keys;
       return Object.fromEntries(selected.filter(key => key in data).map(key => [key, structuredClone(data[key])]));
@@ -20,7 +29,7 @@ Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
 } });
 await import('../src/background.ts');
 const sender = { id: 'test-extension', tab: { id: 1 }, url: 'https://chatgpt.com/c/test' } as chrome.runtime.MessageSender;
-function call<T = QueueReply>(message: Request | SettingsRequest, from = sender): Promise<T> {
+function call<T = QueueReply>(message: Request | SettingsRequest | HistoryRequest, from = sender): Promise<T> {
   return new Promise(resolve => { listener(message, from, value => resolve(value as T)); });
 }
 const command = (action: Request['action']) => call({ channel: 'chatgpt-web-queue-v1', key: 'conversation:test', documentId: 'doc', action });
@@ -92,4 +101,23 @@ test('closing a takeover requester cancels the handoff without discarding the ac
   assert.equal(reply.ok, true);
   assert.equal(reply.state.handoff, null);
   assert.equal(reply.state.owner?.tabId, 30);
+});
+
+test('connecting migrates oversized legacy history and the management page can export it', async () => {
+  const state = emptyQueue('conversation:legacy-background');
+  state.removed = Array.from({ length: 25 }, (_, i) => ({ id: `old-${i}`, text: `original ${i}`, status: 'queued', createdAt: i }));
+  const { handoff, ...legacy } = state;
+  data['cwq:v1:conversation:legacy-background'] = legacy;
+  const reply = await call({ channel: 'chatgpt-web-queue-v1', key: state.key, documentId: 'reloaded', action: { type: 'connect' } });
+  assert.equal(reply.state.removed.length, 20);
+  const exported = await call<{ ok: boolean; data: HistoryExport }>({ channel: HISTORY_CHANNEL, action: { type: 'export' } },
+    { id: 'test-extension', url: 'chrome-extension://test-extension/history.html' });
+  assert.equal(exported.ok, true);
+  assert.equal(exported.data.archive.filter(row => row.key === state.key).length, 5);
+});
+
+test('ChatGPT content scripts cannot invoke privileged history export', () => {
+  let responded = false;
+  const result = listener({ channel: HISTORY_CHANNEL, action: { type: 'export' } }, sender, () => { responded = true; });
+  assert.equal(result, undefined); assert.equal(responded, false);
 });
