@@ -1,12 +1,19 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Web Queue",
-  "version": "0.3.2",
-  "description": "Queue text follow-ups above the ChatGPT composer and send them one turn at a time.",
+  "version": "0.4.0",
+  "description": "Queue follow-ups and name ChatGPT conversations with project templates, custom rules, and tags.",
   "minimum_chrome_version": "120",
-  "permissions": ["storage"],
+  "permissions": ["storage", "activeTab"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
   "background": { "service_worker": "background.js", "type": "module" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
   "content_scripts": [{
+    "matches": ["https://chatgpt.com/*"],
+    "js": ["naming-bridge.js"],
+    "world": "MAIN",
+    "run_at": "document_start"
+  }, {
     "matches": ["https://chatgpt.com/*"],
     "js": ["content.js"],
     "run_at": "document_start"

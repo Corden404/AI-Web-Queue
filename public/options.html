@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>对话命名设置 · ChatGPT Web Queue</title><link rel="stylesheet" href="options.css"></head>
+<body><main>
+  <header><div><div class="eyebrow">CHATGPT WEB QUEUE</div><h1>让对话名称一眼可读</h1><p>按你的项目、任务和标签命名。</p></div><button type="submit" form="settings" class="primary" id="save">保存设置</button></header>
+  <div id="status" role="status" aria-live="polite">正在读取设置…</div>
+  <form id="settings">
+    <section><div class="section-heading"><div><h2>命名方式</h2><p>默认根据你发送的第一条消息命名。</p></div><label class="check"><input type="checkbox" id="naming-enabled">开启自动命名</label></div>
+      <div class="grid"><label>命名依据<select id="mode"><option value="first">首条消息 · 名称保持稳定</option><option value="conversation">整段对话总结 · 随讨论更新</option></select></label><label>活动名称最长字数<input id="max-length" type="number" min="4" max="60"></label></div>
+      <label>命名要求<textarea id="instructions" rows="3" placeholder="例如：使用中文，突出研究对象；区分调研、规划和实际实现。"></textarea></label>
+    </section>
+    <section><h2>标题格式</h2><div class="grid"><label>项目内对话<input id="project-template" spellcheck="false"></label><label>非项目对话<input id="standalone-template" spellcheck="false"></label></div>
+      <p class="hint">可用字段：{项目简称}、{项目名称}、{日期}、{活动}、{主题}、{标签}。添加 {标签} 后才会在标题中显示标签。</p>
+      <div class="grid"><label>日期格式<select id="date-format"><option value="MM-DD">10-19（月-日）</option><option value="YYYY-MM-DD">2026-10-19（年-月-日）</option></select></label><label>日期时区<input id="time-zone" placeholder="Asia/Taipei"></label></div><p class="hint">日期使用对话创建时间，重新命名时保持不变。</p>
+    </section>
+    <section><h2>标签规则</h2><label>所有对话的固定标签<input id="tags" placeholder="例如：学习 个人"></label><p class="hint">多个标签用空格或逗号分隔。条件标签由模型根据命名依据判断。</p>
+      <div id="tag-rules" class="rows"></div><button type="button" id="add-tag">＋ 添加条件标签</button>
+    </section>
+    <section><div class="section-heading"><div><h2>项目规则</h2><p>项目设置覆盖全局模式和命名要求，固定标签会叠加。</p></div><button type="button" id="add-project">＋ 添加项目</button></div><div id="projects" class="rows"></div><p class="hint">名称用于精确匹配项目。也可填写项目 ID，使规则在项目改名后继续生效。</p></section>
+    <section><h2>命名模型</h2><div class="grid"><label>API 基础地址<input id="base-url" type="url" spellcheck="false" placeholder="https://api.openai.com/v1"></label><label>模型名称<input id="model" spellcheck="false" placeholder="填写服务商提供的模型 ID"></label></div>
+      <p class="hint">基础地址末尾不含 /chat/completions 或 /responses。本地模型可使用 http://localhost 或 http://127.0.0.1。</p>
+      <label>API Key<input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="本地模型无需凭据时可留空"></label>
+      <div class="grid"><label>API 协议<select id="protocol"><option value="chat">OpenAI 兼容 Chat Completions</option><option value="responses">OpenAI Responses</option></select></label><label>输出格式<select id="output-format"><option value="json">JSON 模式</option><option value="schema">严格 JSON Schema</option><option value="prompt">仅通过提示词要求 JSON</option></select></label></div>
+      <p class="hint">保存时仅申请所填模型域名的访问权限。首条模式只向该服务发送首条消息；整段模式发送当前分支的对话正文。凭据保存在本机。</p>
+    </section>
+  </form>
+  <section><h2>试一下命名规则</h2><div class="grid"><label>示例项目名称（留空表示非项目）<input id="sample-project" value="创新比赛"></label><label>示例项目 ID（可选）<input id="sample-project-id"></label></div>
+    <label>示例消息<textarea id="sample" rows="3">了解农业无人机相关创新比赛，收集资料并制定参赛计划。</textarea></label>
+    <button type="button" id="preview">用当前规则生成预览</button><p class="hint">预览使用表单中的配置调用模型，不修改任何对话名称。</p><div id="preview-result" class="preview" aria-live="polite">生成后会在这里显示活动、标签和最终标题。</div>
+  </section>
+  <section id="current-chat" hidden><h2>当前对话</h2><p id="current-title"></p><div class="grid"><label>此对话的命名依据<select id="chat-mode"><option value="inherit">跟随项目 / 全局规则</option><option value="first">首条消息</option><option value="conversation">整段对话总结</option></select></label><label>此对话的固定标签<input id="chat-tags"></label></div>
+    <label>此对话的命名要求（留空跟随项目 / 全局规则）<textarea id="chat-instructions" rows="2"></textarea></label><div class="actions"><button type="button" id="save-chat">保存此对话规则</button><button type="button" id="generate-chat">重新生成名称</button><button type="button" id="lock-chat">锁定标题</button><button type="button" id="undo-chat">撤销上次改名</button></div><div id="chat-status" role="status" aria-live="polite"></div>
+  </section>
+  <footer>自动命名与消息队列独立开关。手动改名后自动锁定，撤销改名后也会锁定。</footer>
+</main><script type="module" src="options.js"></script></body></html>

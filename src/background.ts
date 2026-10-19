@@ -2,6 +2,9 @@ import { emptyQueue, transition } from './core/queue.ts';
 import type { Request, QueueState } from './core/types.ts';
 import { parseSettings, SETTINGS_CHANNEL, SETTINGS_KEY } from './core/settings.ts';
 import type { SettingsRequest } from './core/settings.ts';
+import { registerNamingBackground } from './naming/background.ts';
+
+registerNamingBackground();
 
 let writer: Promise<unknown> = Promise.resolve();
 const storageKey = (key: string) => `cwq:v1:${key}`;
