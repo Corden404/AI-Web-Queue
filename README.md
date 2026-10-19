@@ -2,6 +2,16 @@
 
 Chrome 的 ChatGPT 纯文本消息队列扩展。队列托盘内缩在原输入框上方，界面参考 Codex Queue，支持当前回答完成后逐条自动发送。空队列时隐藏。
 
+## 使用效果
+
+在 ChatGPT 真实页面中，回答进行时输入的后续消息会显示在原输入框上方的队列托盘。
+
+![后续消息在 ChatGPT 输入框上方等待发送](assets/screenshots/queue-pending.png)
+
+上一轮回答完成后，队列消息自动发送；收到回复后，空队列托盘隐藏。
+
+![队列消息自动发送后收到对应回复](assets/screenshots/queue-sent.png)
+
 ## 安装
 
 1. 按下文从源码构建，使用生成的 `dist` 目录，或解压本地打包生成的 `release/chatgpt-web-queue-v0.3.2.zip`。
