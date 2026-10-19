@@ -2,7 +2,7 @@ import type { Action, Actor, Owner, QueueReply, QueueState } from './types.ts';
 
 export function emptyQueue(key: string): QueueState {
   return { version: 1, revision: 0, key, items: [], removed: [], sent: [], paused: false,
-    reason: '', owner: null, attempt: null, awaitingReply: null, editing: null };
+    reason: '', owner: null, handoff: null, attempt: null, awaitingReply: null, editing: null };
 }
 export function sameOwner(a: Owner | null, b: Owner): boolean {
   return !!a && a.tabId === b.tabId && a.documentId === b.documentId;
@@ -12,11 +12,19 @@ export function sameOwner(a: Owner | null, b: Owner): boolean {
 export function transition(input: QueueState, action: Action, actor: Actor,
   uid: () => string = () => crypto.randomUUID()): QueueReply {
   const state = structuredClone(input);
+  state.handoff ??= null;
   const owner = { tabId: actor.tabId, documentId: actor.documentId };
   const fail = (error: string): QueueReply => ({ ok: false, state: input, error });
   const editable = (id: string) => state.items.find(i => i.id === id && i.status === 'queued');
   const ownAttempt = (id: string) => sameOwner(state.owner, owner) && state.attempt?.id === id;
   const pause = (reason: string) => { state.paused = true; state.reason = reason; };
+  const finishHandoff = () => {
+    if (!state.handoff) return;
+    state.owner = state.handoff;
+    state.handoff = null;
+    state.editing = null;
+    pause('已接管队列，核对当前回答后继续');
+  };
   const recover = () => {
     if (state.attempt) {
       const item = state.items.find(i => i.id === state.attempt!.itemId);
@@ -28,10 +36,13 @@ export function transition(input: QueueState, action: Action, actor: Actor,
 
   switch (action.type) {
     case 'connect':
+      if (state.handoff?.tabId === owner.tabId && !sameOwner(state.handoff, owner))
+        state.handoff = owner;
       if (state.owner?.tabId === owner.tabId && !sameOwner(state.owner, owner)) {
         recover();
         state.owner = owner;
         if (state.items.length || state.awaitingReply) pause('页面已重新加载，请核对后继续');
+        finishHandoff();
       } else if (!state.owner) state.owner = owner;
       break;
     case 'enqueue':
@@ -42,6 +53,7 @@ export function transition(input: QueueState, action: Action, actor: Actor,
       break;
     case 'pause':
       if (!sameOwner(state.owner, owner)) return fail('请先在此标签页接管队列');
+      if (!action.paused && state.handoff) return fail('正在交接发送权，请等待当前消息核对完成');
       if (!action.paused && state.items.some(i => i.status === 'uncertain'))
         return fail('请先确认结果不明的消息是否已经发送');
       state.paused = action.paused;
@@ -112,6 +124,7 @@ export function transition(input: QueueState, action: Action, actor: Actor,
       state.items = state.items.filter(i => i.id !== itemId);
       state.awaitingReply = { attemptId: action.attemptId, userMessageId: action.userMessageId };
       state.attempt = null;
+      finishHandoff();
       break;
     }
     case 'abort':
@@ -119,12 +132,14 @@ export function transition(input: QueueState, action: Action, actor: Actor,
       state.items.find(i => i.id === state.attempt!.itemId)!.status = 'queued';
       state.attempt = null;
       pause(action.reason);
+      finishHandoff();
       break;
     case 'uncertain':
       if (!ownAttempt(action.attemptId)) return fail('发送状态已变化');
       state.items.find(i => i.id === state.attempt!.itemId)!.status = 'uncertain';
       state.attempt = null;
       pause(action.reason);
+      finishHandoff();
       break;
     case 'resolve': {
       if (!sameOwner(state.owner, owner)) return fail('请先在此标签页接管队列');
@@ -150,12 +165,22 @@ export function transition(input: QueueState, action: Action, actor: Actor,
         recover();
         state.owner = null;
         if (state.items.length || state.awaitingReply) pause('会话已切换，请返回后继续');
+        finishHandoff();
       }
       if (state.editing && sameOwner(state.editing.owner, owner)) state.editing = null;
+      if (sameOwner(state.handoff, owner)) state.handoff = null;
       break;
     case 'takeover':
+      // A submitted attempt may already be clicking or waiting for its receipt.
+      // Its original owner must settle it before another tab can dispatch.
+      if (state.attempt?.phase === 'submitted') {
+        state.handoff = sameOwner(state.owner, owner) ? null : owner;
+        pause(state.handoff ? '正在交接发送权，等待当前消息核对完成' : '已取消交接，核对当前回答后继续');
+        break;
+      }
       recover();
       state.owner = owner;
+      state.handoff = null;
       if (state.items.length || state.awaitingReply) pause('已接管队列，核对当前回答后继续');
       break;
   }

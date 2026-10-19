@@ -91,3 +91,50 @@ test('state is immutable and failed transitions cannot destroy a pending item', 
   const bad = transition(result.state, { type: 'remove', id: 'missing' }, a);
   assert.equal(bad.ok, false); assert.deepEqual(bad.state, result.state);
 });
+
+test('submitted attempts retain their owner until a takeover receipt or cancellation settles them', () => {
+  for (const outcome of ['ack', 'abort', 'uncertain'] as const) {
+    const f = fixture(); f.act({ type: 'enqueue', text: 'one' });
+    const id = f.act({ type: 'claim' }).attempt!.id;
+    f.act({ type: 'submitted', attemptId: id });
+    f.act({ type: 'takeover' }, b);
+    assert.equal(f.state.owner?.documentId, a.documentId);
+    assert.equal(f.state.handoff?.documentId, b.documentId);
+    assert.equal(f.act({ type: 'pause', paused: false }).ok, false);
+    assert.equal(f.act({ type: 'claim' }, b).ok, false);
+    const result = outcome === 'ack'
+      ? f.act({ type: 'ack', attemptId: id, userMessageId: 'u2' })
+      : f.act({ type: outcome, attemptId: id, reason: 'settled' });
+    assert.equal(result.ok, true);
+    assert.equal(f.state.owner?.documentId, b.documentId);
+    assert.equal(f.state.handoff, null);
+    assert.equal(f.state.paused, true);
+    if (outcome === 'ack') assert.equal(f.state.awaitingReply?.userMessageId, 'u2');
+    else assert.equal(f.state.items[0]!.status, outcome === 'abort' ? 'queued' : 'uncertain');
+  }
+});
+
+test('pre-click takeover rejects stale submissions and owner loss completes a pending handoff', () => {
+  const f = fixture(); f.act({ type: 'enqueue', text: 'one' });
+  const prepared = f.act({ type: 'claim' }).attempt!.id;
+  f.act({ type: 'takeover' }, b);
+  assert.equal(f.act({ type: 'submitted', attemptId: prepared }).ok, false);
+  f.act({ type: 'pause', paused: false }, b);
+  const id = f.act({ type: 'claim' }, b).attempt!.id;
+  f.act({ type: 'submitted', attemptId: id }, b);
+  f.act({ type: 'takeover' }, a);
+  f.act({ type: 'leave' }, b);
+  assert.equal(f.state.owner?.documentId, a.documentId);
+  assert.equal(f.state.items[0]!.status, 'uncertain');
+  assert.equal(f.state.handoff, null);
+});
+
+test('a departing takeover requester does not receive ownership after the receipt', () => {
+  const f = fixture(); f.act({ type: 'enqueue', text: 'one' });
+  const id = f.act({ type: 'claim' }).attempt!.id;
+  f.act({ type: 'submitted', attemptId: id });
+  f.act({ type: 'takeover' }, b); f.act({ type: 'leave' }, b);
+  assert.equal(f.act({ type: 'ack', attemptId: id, userMessageId: 'u3' }).ok, true);
+  assert.equal(f.state.owner?.documentId, a.documentId);
+  assert.equal(f.state.handoff, null);
+});

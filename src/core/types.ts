@@ -24,6 +24,7 @@ export interface QueueState {
   paused: boolean;
   reason: string;
   owner: Owner | null;
+  handoff: Owner | null;
   attempt: Attempt | null;
   awaitingReply: { attemptId: string; userMessageId: string } | null;
   editing: { itemId: string; owner: Owner } | null;

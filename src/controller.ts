@@ -17,6 +17,7 @@ export class QueueController {
   private blocked = '';
   private generation = 0;
   private loading = false;
+  private refreshPending = false;
   private dispatching = false;
   private enqueueing = false;
   private composing = false;
@@ -76,12 +77,16 @@ export class QueueController {
     if (reply.ok && changed) this.schedule();
   }
   private async refresh() {
-    if (!this.key || this.loading) return;
+    if (!this.key) return;
+    if (this.loading) { this.refreshPending = true; return; }
     this.loading = true;
     const key = this.key;
     try { this.setReply(await this.client.send(key, { type: 'connect' }), key); }
     catch (error) { if (key === this.key) { this.error = this.readError(error); this.render(); } }
-    finally { this.loading = false; }
+    finally {
+      this.loading = false;
+      if (this.refreshPending) { this.refreshPending = false; void this.refresh(); }
+    }
   }
   private async act(action: Action) {
     if (!this.key) return;
@@ -275,6 +280,9 @@ export class QueueController {
       const submitted = await this.client.send(key, { type: 'submitted', attemptId });
       this.setReply(submitted, key);
       if (!submitted.ok) throw new Error(submitted.error ?? '队列已暂停');
+      // Storage notifications can supersede the reply while it is in flight.
+      if (!this.owns() || this.state?.attempt?.id !== attemptId || this.state.paused || this.state.editing)
+        throw new Error('发送权或队列状态已变化，消息未发送');
       const final = inspectPage(this.document);
       if (!this.enabled || !stillHere() || final.editor !== editor || !final.send || final.busy || final.error || final.attachments ||
           this.inputVersion !== injectedVersion || comparableText(editorText(editor)) !== comparableText(item.text))

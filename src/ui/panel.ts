@@ -113,7 +113,7 @@ export class QueuePanel {
         const label = this.document.createElement('span'); label.textContent = status;
         line.append(label);
         if (!view.owned) line.append(this.button('接管此会话的队列发送', '在此标签页接管', () => void this.action({ type: 'takeover' }), 'text-action'));
-        else if (state.paused && !state.editing) line.append(this.button('继续自动发送', `${icon('play')}继续`, () => void this.action({ type: 'pause', paused: false }), 'text-action'));
+        else if (state.paused && !state.editing && !state.handoff) line.append(this.button('继续自动发送', `${icon('play')}继续`, () => void this.action({ type: 'pause', paused: false }), 'text-action'));
         this.body.append(line);
       }
       if (state.paused && state.reason) this.message(state.reason);

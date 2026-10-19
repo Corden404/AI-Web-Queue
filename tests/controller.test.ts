@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom';
 import { build } from 'vite';
 import { emptyQueue, transition } from '../src/core/queue.ts';
 import { parseSettings, SETTINGS_CHANNEL, SETTINGS_KEY } from '../src/core/settings.ts';
-import type { Request } from '../src/core/types.ts';
+import type { Action, Actor, QueueReply, Request } from '../src/core/types.ts';
 import type { SettingsRequest } from '../src/core/settings.ts';
 
 // Exercise the shipping content-script entry, including its DOM events and storage adapter.
@@ -30,6 +30,7 @@ async function fixture(turn = 'incomplete', enabled?: boolean, pending = false, 
   const subscribers = new Set<(changes: Record<string, unknown>, area: string) => void>();
   const commands: string[] = [];
   let failAction: string | null = null;
+  let afterAction: ((message: Request, reply: QueueReply) => Promise<void> | void) | null = null;
   const intervals: (() => void)[] = [];
   const measures: { name: string; start: number; duration: number }[] = [];
   Object.defineProperty(window.performance, 'clearMeasures', { value: (name: string) => {
@@ -55,6 +56,7 @@ async function fixture(turn = 'incomplete', enabled?: boolean, pending = false, 
         return { ok: false, state, error: 'Queue 已关闭' };
       const reply = transition(state, message.action, { tabId: 1, documentId: message.documentId, now: Date.now() });
       if (reply.ok && reply.state.revision !== state.revision) save(queueName, reply.state);
+      await afterAction?.(message, reply);
       return reply;
     } },
     storage: { onChanged: { addListener(listener: (changes: Record<string, unknown>, area: string) => void) { subscribers.add(listener); }, removeListener() {} } },
@@ -85,6 +87,12 @@ async function fixture(turn = 'incomplete', enabled?: boolean, pending = false, 
     await flush();
   };
   return { dom, root, host, enter, editor, commands, stored, measures, setEnabled, enqueueExternal,
+    afterAction: (hook: typeof afterAction) => { afterAction = hook; },
+    external(action: Action, actor: Actor = { tabId: 2, documentId: 'tab-b', now: Date.now() }) {
+      const reply = transition(stored[queueName] as ReturnType<typeof emptyQueue>, action, actor);
+      if (reply.ok) save(queueName, reply.state);
+      return reply;
+    },
     failNext: (action: string) => { failAction = action; }, state: () => stored[queueName] as ReturnType<typeof emptyQueue> };
 }
 
@@ -327,5 +335,47 @@ test('a failed reply acknowledgement does not spin through immediate retries', a
     await flush();
     assert.equal(f.commands.filter(c => c === 'replyComplete').length, 1);
     assert.equal(sent.length, 1); assert.equal(f.state().items.length, 1);
+  } finally { f.dom.window.close(); }
+});
+
+test('takeover before the native click cancels the old send and transfers the queued item', { timeout: 5000 }, async () => {
+  const f = await fixture('incomplete', true, true);
+  try {
+    const sent = captureNativeSends(f);
+    let settled!: () => void;
+    const done = new Promise<void>(resolve => { settled = resolve; });
+    f.afterAction(async message => {
+      if (message.action.type === 'abort') settled();
+      if (message.action.type !== 'submitted') return;
+      f.external({ type: 'takeover' });
+      await flush(); // Deliver the newer storage revision before the delayed reply.
+    });
+    f.dom.window.document.querySelector<HTMLElement>('[data-talvt-turn-state]')!.dataset.talvtTurnState = 'complete';
+    await done; await flush();
+    assert.deepEqual(sent, []);
+    assert.equal(f.state().owner?.documentId, 'tab-b');
+    assert.equal(f.state().handoff, null);
+    assert.equal(f.state().items[0]!.status, 'queued');
+    assert.equal(f.state().paused, true);
+    assert.equal(f.editor.textContent, '');
+  } finally { f.dom.window.close(); }
+});
+
+test('takeover after the native click preserves the receipt before transferring sending rights', async () => {
+  const f = await fixture('incomplete', true, true);
+  try {
+    const sent = captureNativeSends(f);
+    f.dom.window.document.querySelector('form button')!.addEventListener('click', () => {
+      f.external({ type: 'takeover' });
+    });
+    f.dom.window.document.querySelector<HTMLElement>('[data-talvt-turn-state]')!.dataset.talvtTurnState = 'complete';
+    await flush();
+    assert.deepEqual(sent, ['saved message']);
+    assert.equal(f.state().items.length, 0);
+    assert.equal(f.state().sent[0]!.userMessageId, 'sent-1');
+    assert.equal(f.state().awaitingReply?.userMessageId, 'sent-1');
+    assert.equal(f.state().owner?.documentId, 'tab-b');
+    assert.equal(f.state().paused, true);
+    assert.doesNotMatch(f.root().textContent!, /发送状态已变化/);
   } finally { f.dom.window.close(); }
 });
