@@ -1,0 +1,39 @@
+# Dependencies, caches, and generated packages
+node_modules/
+.cache/
+dist/
+release/
+build/
+coverage/
+*.tsbuildinfo
+
+# Local workspace files
+.local/
+.trash/
+.private/
+.env
+.env.*
+.idea/
+.vscode/
+
+# Local test suites and simulated preview
+/tests/
+/index.html
+/vite.config.ts
+/src/demo.ts
+/src/demo.css
+
+# Logs, verification output, and internal documents
+*.log
+/logs/
+/test-results/
+/playwright-report/
+/screenshots/
+/reports/
+/plans/
+/notes/
+/experiments/
+*.md
+!README.md
+!LICENSE.md
+!CHANGELOG.md

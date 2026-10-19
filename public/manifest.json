@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Web Queue",
+  "version": "0.3.2",
+  "description": "Queue text follow-ups above the ChatGPT composer and send them one turn at a time.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [{
+    "matches": ["https://chatgpt.com/*"],
+    "js": ["content.js"],
+    "run_at": "document_start"
+  }],
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": { "default_title": "ChatGPT Web Queue", "default_popup": "popup.html" }
+}
