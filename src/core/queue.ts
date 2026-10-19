@@ -36,6 +36,8 @@ export function transition(input: QueueState, action: Action, actor: Actor,
 
   switch (action.type) {
     case 'connect':
+      if (state.editing?.owner.tabId === owner.tabId && !sameOwner(state.editing.owner, owner))
+        state.editing = null;
       if (state.handoff?.tabId === owner.tabId && !sameOwner(state.handoff, owner))
         state.handoff = owner;
       if (state.owner?.tabId === owner.tabId && !sameOwner(state.owner, owner)) {

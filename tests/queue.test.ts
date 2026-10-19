@@ -138,3 +138,15 @@ test('a departing takeover requester does not receive ownership after the receip
   assert.equal(f.state.owner?.documentId, a.documentId);
   assert.equal(f.state.handoff, null);
 });
+
+test('reconnecting a non-owner editing tab releases only the stale document lock', () => {
+  const f = fixture(); f.act({ type: 'enqueue', text: 'one' });
+  const id = f.state.items[0]!.id;
+  f.act({ type: 'editStart', id }, b);
+  f.act({ type: 'connect' }, { ...b, documentId: 'reloaded-editor' });
+  assert.equal(f.state.editing, null);
+  assert.equal(f.state.owner?.documentId, a.documentId);
+  assert.equal(f.act({ type: 'editSave', id, text: 'stale edit' }, b).ok, false);
+  assert.equal(f.state.items[0]!.text, 'one');
+  assert.equal(f.act({ type: 'claim' }).ok, true);
+});

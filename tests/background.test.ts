@@ -6,6 +6,7 @@ import type { Settings, SettingsRequest } from '../src/core/settings.ts';
 
 const data: Record<string, unknown> = {};
 let listener: (message: Request | SettingsRequest, sender: chrome.runtime.MessageSender, respond: (reply: unknown) => void) => unknown;
+let closed: (tabId: number) => void;
 Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
   runtime: { id: 'test-extension', onMessage: { addListener(fn: typeof listener) { listener = fn; } } },
   storage: { local: {
@@ -15,7 +16,7 @@ Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
     },
     async set(values: Record<string, unknown>) { Object.assign(data, structuredClone(values)); },
   } },
-  tabs: { onRemoved: { addListener() {} } },
+  tabs: { onRemoved: { addListener(fn: typeof closed) { closed = fn; } } },
 } });
 await import('../src/background.ts');
 const sender = { id: 'test-extension', tab: { id: 1 }, url: 'https://chatgpt.com/c/test' } as chrome.runtime.MessageSender;
@@ -60,4 +61,35 @@ test('disabling after an actual submission still allows its receipt to be reconc
   await command({ type: 'submitted', attemptId: id }); await enable(false);
   const ack = await command({ type: 'ack', attemptId: id, userMessageId: 'u1' });
   assert.equal(ack.ok, true); assert.equal(ack.state.items.length, 0); assert.equal(ack.state.sent.length, 1);
+});
+
+test('closing a non-owner editing tab releases its lock without a pagehide notification', async () => {
+  await enable(true);
+  const send = (action: Request['action'], tabId = 10, documentId = 'owner') => call({
+    channel: 'chatgpt-web-queue-v1', key: 'conversation:closed-editor', documentId, action,
+  }, { ...sender, tab: { id: tabId } } as chrome.runtime.MessageSender);
+  const added = await send({ type: 'enqueue', text: 'retained text' });
+  await send({ type: 'editStart', id: added.state.items[0]!.id }, 20, 'editor');
+  closed(20);
+  const recovered = await send({ type: 'connect' }); // Serialized after onRemoved.
+  assert.equal(recovered.state.editing, null);
+  assert.equal(recovered.state.owner?.tabId, 10);
+  assert.equal(recovered.state.items[0]!.text, 'retained text');
+  assert.equal((await send({ type: 'claim' })).ok, true);
+});
+
+test('closing a takeover requester cancels the handoff without discarding the active attempt', async () => {
+  await enable(true);
+  const send = (action: Request['action'], tabId = 30, documentId = 'owner') => call({
+    channel: 'chatgpt-web-queue-v1', key: 'conversation:closed-requester', documentId, action,
+  }, { ...sender, tab: { id: tabId } } as chrome.runtime.MessageSender);
+  await send({ type: 'enqueue', text: 'message' });
+  const id = (await send({ type: 'claim' })).attempt!.id;
+  await send({ type: 'submitted', attemptId: id });
+  await send({ type: 'takeover' }, 40, 'requester');
+  closed(40);
+  const reply = await send({ type: 'ack', attemptId: id, userMessageId: 'receipt' });
+  assert.equal(reply.ok, true);
+  assert.equal(reply.state.handoff, null);
+  assert.equal(reply.state.owner?.tabId, 30);
 });

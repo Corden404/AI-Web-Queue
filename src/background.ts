@@ -48,10 +48,14 @@ chrome.tabs.onRemoved.addListener(tabId => {
   void serialize(async () => {
     const all = await chrome.storage.local.get(null);
     for (const [name, state] of Object.entries(all)) {
-      if (!name.startsWith('cwq:v1:') || (state as QueueState).owner?.tabId !== tabId) continue;
-      const current = state as QueueState;
-      const reply = transition(current, { type: 'leave' }, { ...current.owner!, now: Date.now() });
-      await chrome.storage.local.set({ [name]: reply.state });
+      if (!name.startsWith('cwq:v1:')) continue;
+      let current = state as QueueState;
+      const actors = [current.owner, current.editing?.owner, current.handoff]
+        .filter(actor => actor?.tabId === tabId);
+      for (const actor of actors) {
+        current = transition(current, { type: 'leave' }, { ...actor!, now: Date.now() }).state;
+      }
+      if (actors.length) await chrome.storage.local.set({ [name]: current });
     }
   });
 });
