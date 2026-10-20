@@ -56,6 +56,7 @@ function render(s: NamingSettings) {
   settings = s; input('naming-enabled').checked = s.enabled;
   for (const [key, v] of Object.entries({ mode: s.mode, instructions: s.instructions, 'max-length': String(s.maxActivityLength),
     'project-template': s.projectTemplate, 'standalone-template': s.standaloneTemplate, 'date-format': s.dateFormat,
+    'tag-selection': s.tagSelection, 'fallback-tag': s.fallbackTag,
     'time-zone': s.timeZone, tags: s.tags.join(' '), 'base-url': s.provider.baseUrl, model: s.provider.model,
     'api-key': s.provider.apiKey, protocol: s.provider.protocol, 'output-format': s.provider.format })) set(key, v);
   document.querySelector('#tag-rules')!.replaceChildren(); s.tagRules.forEach(addTag);
@@ -67,6 +68,7 @@ function collect(): NamingSettings {
     instructions: value('instructions'), maxActivityLength: Number(value('max-length')),
     projectTemplate: value('project-template'), standaloneTemplate: value('standalone-template'), dateFormat: value('date-format'),
     timeZone: value('time-zone'), tags: tagsFrom(value('tags')),
+    tagSelection: value('tag-selection'), fallbackTag: value('fallback-tag'),
     provider: { baseUrl: value('base-url'), model: value('model'), apiKey: value('api-key'), protocol: value('protocol'), format: value('output-format') },
     tagRules: Array.from(document.querySelectorAll('#tag-rules .tag-row:not([data-removed="true"])')).map(row => ({ condition: field(row, 'condition'), tag: field(row, 'tag') })),
     projects: Array.from(document.querySelectorAll('#projects .project-row:not([data-removed="true"])')).map(row => ({
@@ -82,6 +84,14 @@ void namingRequest({ type: 'getSettings' }).then(reply => {
   message(settings.provider.model ? '设置已载入' : '填写模型服务后保存，即可开始自动命名。');
 }, error => message(String(error), true));
 document.querySelector('#add-tag')!.addEventListener('click', () => addTag());
+document.querySelector('#apply-tag-preset')!.addEventListener('click', () => {
+  if (!loaded) return;
+  const preset = defaultNamingSettings();
+  set('project-template', preset.projectTemplate); set('standalone-template', preset.standaloneTemplate);
+  set('tag-selection', preset.tagSelection); set('fallback-tag', preset.fallbackTag);
+  document.querySelector('#tag-rules')!.replaceChildren(); preset.tagRules.forEach(addTag);
+  message('已填入六类标签和标签优先格式，保存设置后生效。');
+});
 document.querySelector('#add-project')!.addEventListener('click', () => addProject());
 document.querySelector('#settings')!.addEventListener('submit', event => {
   event.preventDefault();
@@ -113,7 +123,7 @@ document.querySelector<HTMLButtonElement>('#preview')!.addEventListener('click',
   void permission.then(async granted => {
     if (!granted) throw new Error('未授予模型服务域名权限');
     const reply = await namingRequest({ type: 'preview', settings: draft, conversation: data });
-    message(`活动：${reply.result!.activity}\n主题：${reply.result!.topic}\n条件标签：${reply.result!.tags.map(t => `#${t}`).join(' ') || '无'}\n\n${reply.title}`, false, output);
+    message(`活动：${reply.result!.activity}\n主题：${reply.result!.topic}\n条件标签：${reply.result!.tags.join(' ') || '无'}\n\n${reply.title}`, false, output);
   }).catch(error => message(String(error), true, output)).finally(() => { button.disabled = false; });
 });
 async function pageControl(type: string): Promise<any> {

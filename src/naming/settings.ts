@@ -20,6 +20,8 @@ export interface NamingSettings {
   instructions: string;
   tags: string[];
   tagRules: TagRule[];
+  tagSelection: 'single' | 'multiple';
+  fallbackTag: string;
   projects: ProjectRule[];
   maxActivityLength: number;
   timeZone: string;
@@ -31,9 +33,16 @@ export const STATE_PREFIX = 'cwq:naming:state:';
 export const defaultNamingSettings = (): NamingSettings => ({
   version: 1, revision: 0, enabled: true, mode: 'first',
   provider: { baseUrl: 'https://api.openai.com/v1', model: '', apiKey: '', protocol: 'chat', format: 'json' },
-  projectTemplate: '{项目简称} | {日期} | {活动}', standaloneTemplate: '{日期} | {活动}',
+  projectTemplate: '{标签} | {日期} | {活动}', standaloneTemplate: '{标签} | {日期} | {活动}',
   instructions: '使用简洁中文概括任务，保留有辨识度的主题。首条消息模式描述任务意图；对话总结模式描述实际讨论内容，不把计划写成已完成。',
-  tags: [], tagRules: [], projects: [], maxActivityLength: 16,
+  tags: [], tagRules: [
+    { tag: '研究', condition: '搜集资料、查文献、了解产品或现状、比较工具、模型、方案' },
+    { tag: '计划', condition: '制定计划、安排步骤、确定优先级' },
+    { tag: '执行', condition: '编写代码、实现功能、重构程序、执行任务或要求' },
+    { tag: '审阅', condition: '审阅已有的代码、PR、Issue、找出 bug 或改进' },
+    { tag: '学习', condition: '和代码、开发无关，用于指导用户学业的对话' },
+    { tag: '杂项', condition: '仅在研究、计划、执行、审阅、学习的规则都没有命中时使用' },
+  ], tagSelection: 'single', fallbackTag: '杂项', projects: [], maxActivityLength: 16,
   timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, dateFormat: 'MM-DD',
 });
 export function cleanText(value: unknown, max = 4000): string {
@@ -60,7 +69,11 @@ export function parseNamingSettings(value: unknown): NamingSettings {
     instructions: typeof v.instructions === 'string' ? cleanText(v.instructions) : d.instructions,
     tags: tagsFrom(v.tags), tagRules: Array.isArray(v.tagRules) ? v.tagRules.slice(0, 40).map(r => ({
       condition: cleanText(r?.condition, 1000), tag: tagsFrom([r?.tag])[0] ?? '',
-    })).filter(r => r.condition && r.tag) : [],
+    })).filter(r => r.condition && r.tag) : d.tagRules,
+    tagSelection: v.tagSelection === 'single' || v.tagSelection === 'multiple' ? v.tagSelection
+      : Array.isArray(v.tagRules) ? 'multiple' : d.tagSelection,
+    fallbackTag: typeof v.fallbackTag === 'string' ? tagsFrom([v.fallbackTag])[0] ?? ''
+      : Array.isArray(v.tagRules) ? '' : d.fallbackTag,
     projects: Array.isArray(v.projects) ? v.projects.slice(0, 100).map(p => ({
       id: cleanText(p?.id, 200), name: cleanText(p?.name, 200), alias: cleanText(p?.alias, 80),
       mode: p?.mode === 'first' || p?.mode === 'conversation' ? p.mode : 'inherit' as const,
@@ -91,6 +104,8 @@ export function validateNamingSettings(settings: NamingSettings): void {
   new Intl.DateTimeFormat('en', { timeZone: settings.timeZone });
   validateTemplate(settings.projectTemplate); validateTemplate(settings.standaloneTemplate);
   for (const project of settings.projects) if (project.template) validateTemplate(project.template);
+  if (settings.fallbackTag && !settings.tagRules.some(rule => rule.tag === settings.fallbackTag))
+    throw new Error('兜底标签需要存在于条件标签库中，或留空取消兜底');
   const keys = settings.projects.map(p => p.id ? `id:${p.id}` : `name:${p.name}`);
   if (new Set(keys).size !== keys.length) throw new Error('项目规则有重复的项目 ID 或名称');
 }

@@ -10,10 +10,13 @@
       <label>命名要求<textarea id="instructions" rows="3" placeholder="例如：使用中文，突出研究对象；区分调研、规划和实际实现。"></textarea></label>
     </section>
     <section><h2>标题格式</h2><div class="grid"><label>项目内对话<input id="project-template" spellcheck="false"></label><label>非项目对话<input id="standalone-template" spellcheck="false"></label></div>
-      <p class="hint">可用字段：{项目简称}、{项目名称}、{日期}、{活动}、{主题}、{标签}。添加 {标签} 后才会在标题中显示标签。</p>
+      <p class="hint">项目内外默认统一使用 {标签} | {日期} | {活动}。可用字段：{项目简称}、{项目名称}、{日期}、{活动}、{主题}、{标签}。</p>
       <div class="grid"><label>日期格式<select id="date-format"><option value="MM-DD">10-19（月-日）</option><option value="YYYY-MM-DD">2026-10-19（年-月-日）</option></select></label><label>日期时区<input id="time-zone" placeholder="Asia/Taipei"></label></div><p class="hint">日期使用对话创建时间，重新命名时保持不变。</p>
     </section>
-    <section><h2>标签规则</h2><label>所有对话的固定标签<input id="tags" placeholder="例如：学习 个人"></label><p class="hint">多个标签用空格或逗号分隔。条件标签由模型根据命名依据判断。</p>
+    <section><div class="section-heading"><div><h2>标签规则</h2><p>默认使用研究、计划、执行、审阅、学习、杂项六类标签，按主要目的选择一类。</p></div><button type="button" id="apply-tag-preset">使用六类标签预设</button></div>
+      <p class="hint">预设会替换条件标签、标签数量、兜底标签及两种标题格式，保存后生效。学习仅指与代码、开发无关的学业指导。</p>
+      <div class="grid"><label>条件标签数量<select id="tag-selection"><option value="single">单标签 · 按主要目的选择</option><option value="multiple">多标签 · 保留所有命中类别</option></select></label><label>兜底标签<input id="fallback-tag" placeholder="例如：杂项；留空不使用兜底"></label></div>
+      <label>所有对话的固定标签<input id="tags" placeholder="例如：个人"></label><p class="hint">多个固定标签用空格或逗号分隔，会与条件标签叠加。条件标签由模型根据命名依据判断；其他类别均未命中时才使用兜底标签。</p>
       <div id="tag-rules" class="rows"></div><button type="button" id="add-tag">＋ 添加条件标签</button>
     </section>
     <section><div class="section-heading"><div><h2>项目规则</h2><p>项目设置覆盖全局模式和命名要求，固定标签会叠加。</p></div><button type="button" id="add-project">＋ 添加项目</button></div><div id="projects" class="rows"></div><p class="hint">名称用于精确匹配项目。也可填写项目 ID，使规则在项目改名后继续生效。</p></section>
