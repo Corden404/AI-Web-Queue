@@ -33,7 +33,7 @@ export const STATE_PREFIX = 'cwq:naming:state:';
 export const defaultNamingSettings = (): NamingSettings => ({
   version: 1, revision: 0, enabled: true, mode: 'first',
   provider: { baseUrl: 'https://api.openai.com/v1', model: '', apiKey: '', protocol: 'chat', format: 'json' },
-  projectTemplate: '{标签} | {日期} | {项目简称} | {活动}', standaloneTemplate: '{标签} | {日期} | {活动}',
+  projectTemplate: '{标签} | {日期} | {活动}', standaloneTemplate: '{标签} | {日期} | {活动}',
   instructions: '使用简洁中文概括任务，保留有辨识度的主题。首条消息模式描述任务意图；对话总结模式描述实际讨论内容，不把计划写成已完成。',
   tags: [], tagRules: [
     { tag: '研究', condition: '搜集资料、查文献、了解产品或现状、比较工具、模型、方案' },
