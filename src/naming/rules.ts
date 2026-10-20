@@ -24,18 +24,23 @@ export function sourceMessages(conversation: ConversationData, mode: 'first' | '
   if (!conversation.messages.some(m => m.role === 'user' && m.text.trim())) throw new Error('对话没有可用于命名的文字');
   return conversation.messages;
 }
+export function selectTags(settings: NamingSettings, value: unknown): string[] {
+  const allowed = new Set(settings.tagRules.map(rule => rule.tag));
+  const matched = tagsFrom(value).filter(tag => allowed.has(tag) && tag !== settings.fallbackTag);
+  if (matched.length) return settings.tagSelection === 'single' ? matched.slice(0, 1) : matched;
+  return allowed.has(settings.fallbackTag) ? [settings.fallbackTag] : [];
+}
 export function renderTitle(settings: NamingSettings, conversation: ConversationData, state: NamingState, result: NamingResult): string {
   const rule = resolveRule(settings, conversation, state);
   const date = new Intl.DateTimeFormat('en-CA', { timeZone: settings.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
     .formatToParts(new Date(conversation.createdAt));
   const part = (type: string) => date.find(p => p.type === type)?.value ?? '';
   const day = `${part('month')}-${part('day')}`;
-  const allowedTags = new Set(settings.tagRules.map(r => r.tag));
   const values: Record<string, string> = {
     项目简称: rule.alias, 项目名称: conversation.project?.name ?? '',
     日期: settings.dateFormat === 'YYYY-MM-DD' ? `${part('year')}-${day}` : day,
     活动: result.activity, 主题: result.topic,
-    标签: tagsFrom([...rule.tags, ...result.tags.filter(t => allowedTags.has(t))]).map(t => `#${t}`).join(' '),
+    标签: tagsFrom([...rule.tags, ...selectTags(settings, result.tags)]).map(t => `#${t}`).join(' '),
   };
   const title = rule.template.replace(/\{([^{}]+)\}/g, (_, key: string) => values[key] ?? '')
     .split('|').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' | ').trim();
