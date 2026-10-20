@@ -40,7 +40,7 @@ export function renderTitle(settings: NamingSettings, conversation: Conversation
     项目简称: rule.alias, 项目名称: conversation.project?.name ?? '',
     日期: settings.dateFormat === 'YYYY-MM-DD' ? `${part('year')}-${day}` : day,
     活动: result.activity, 主题: result.topic,
-    标签: tagsFrom([...rule.tags, ...selectTags(settings, result.tags)]).map(t => `#${t}`).join(' '),
+    标签: tagsFrom([...rule.tags, ...selectTags(settings, result.tags)]).join(' '),
   };
   const title = rule.template.replace(/\{([^{}]+)\}/g, (_, key: string) => values[key] ?? '')
     .split('|').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' | ').trim();

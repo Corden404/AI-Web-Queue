@@ -123,7 +123,7 @@ document.querySelector<HTMLButtonElement>('#preview')!.addEventListener('click',
   void permission.then(async granted => {
     if (!granted) throw new Error('未授予模型服务域名权限');
     const reply = await namingRequest({ type: 'preview', settings: draft, conversation: data });
-    message(`活动：${reply.result!.activity}\n主题：${reply.result!.topic}\n条件标签：${reply.result!.tags.map(t => `#${t}`).join(' ') || '无'}\n\n${reply.title}`, false, output);
+    message(`活动：${reply.result!.activity}\n主题：${reply.result!.topic}\n条件标签：${reply.result!.tags.join(' ') || '无'}\n\n${reply.title}`, false, output);
   }).catch(error => message(String(error), true, output)).finally(() => { button.disabled = false; });
 });
 async function pageControl(type: string): Promise<any> {
